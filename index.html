@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Planos Angela & Pedro</title>
+  <style>
+    :root {
+      --sheet-green: #0f9d58;
+      --sheet-bg: #f8f9fa;
+      --border-color: #e0e0e0;
+      --grid-line: #e2e3e4;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Roboto, Arial, sans-serif; }
+    body { background-color: var(--sheet-bg); color: #333; font-size: 13px; }
+
+    /* Topbar estilo Google Sheets */
+    header {
+      background: white;
+      border-bottom: 1px solid var(--border-color);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .sheet-icon { width: 30px; height: 30px; background: var(--sheet-green); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 16px; }
+    .title-container h1 { font-size: 18px; font-weight: 400; color: #202124; }
+    
+    /* Área de ações e sorteador */
+    .toolbar {
+      background: #edf2fc;
+      padding: 8px 16px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .btn {
+      background: var(--sheet-green);
+      color: white;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .btn-secondary {
+      background: white;
+      color: #1a73e8;
+      border: 1px solid #dadce0;
+    }
+
+    /* Formulário de adição */
+    .form-container {
+      background: white;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .form-container input, .form-container select {
+      padding: 6px 10px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      outline: none;
+    }
+
+    /* Tabela Estilo Grid Google Sheets */
+    .grid-container { overflow-x: auto; padding: 10px; }
+    table { width: 100%; border-collapse: collapse; background: white; border: 1px solid var(--grid-line); }
+    th { background: #f1f3f4; color: #5f6368; font-weight: bold; text-align: left; padding: 8px; border: 1px solid var(--grid-line); font-size: 12px; }
+    td { padding: 8px; border: 1px solid var(--grid-line); color: #333; }
+    tr:nth-child(even) { background-color: #f8f9fa; }
+
+    /* Modal Sorteador */
+    #suggestion { font-weight: bold; color: var(--sheet-green); }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="sheet-icon">📊</div>
+    <div class="title-container">
+      <h1>Planos Angela & Pedro</h1>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <button class="btn btn-secondary" onclick="sortearRole()">🎲 Sortear Rolê!</button>
+    <span id="suggestion"></span>
+  </div>
+
+  <!-- Formulário estilo nova linha da planilha -->
+  <form id="addForm" class="form-container">
+    <input type="text" id="oQue" placeholder="O que fazer?" required>
+    <select id="categoria">
+      <option value="Restaurante">Restaurante</option>
+      <option value="Passeio">Passeio</option>
+      <option value="Viagem">Viagem</option>
+      <option value="Filme/Série">Filme/Série</option>
+    </select>
+    <select id="status">
+      <option value="Ideia">Ideia</option>
+      <option value="Agendado">Agendado</option>
+      <option value="Concluído">Concluído</option>
+    </select>
+    <input type="date" id="data">
+    <input type="text" id="obs" placeholder="Observações">
+    <button type="submit" class="btn">Adicionar Linha</button>
+  </form>
+
+  <!-- Tabela com os dados -->
+  <div class="grid-container">
+    <table id="sheetTable">
+      <thead>
+        <tr>
+          <th>A - O que fazer</th>
+          <th>B - Categoria</th>
+          <th>C - Status</th>
+          <th>D - Data</th>
+          <th>E - Observações</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="5">Carregando planos...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbygjSTpeanEpuhuMw2vewuTVYIqQKYZsRkDmJcnPWbFHuGCTZMPKLyxAyL-ZHbbTH3w/exec';
+    let planosData = [];
+
+    // Carregar dados da planilha
+    async function fetchPlanos() {
+      try {
+        const res = await fetch(SCRIPT_URL);
+        planosData = await res.json();
+        renderTable(planosData);
+      } catch (err) {
+        document.querySelector('#sheetTable tbody').innerHTML = '<tr><td colspan="5">Erro ao carregar dados.</td></tr>';
+      }
+    }
+
+    // Renderizar tabela HTML
+    function renderTable(data) {
+      const tbody = document.querySelector('#sheetTable tbody');
+      tbody.innerHTML = '';
+
+      // Pula a linha 0 (cabeçalho da planilha)
+      for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        if (!row.length) continue;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${row[0] || ''}</td>
+          <td>${row[1] || ''}</td>
+          <td>${row[2] || ''}</td>
+          <td>${row[3] ? new Date(row[3]).toLocaleDateString('pt-BR') : ''}</td>
+          <td>${row[4] || ''}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    // Enviar novos dados
+    document.getElementById('addForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        action: 'add',
+        oQue: document.getElementById('oQue').value,
+        categoria: document.getElementById('categoria').value,
+        status: document.getElementById('status').value,
+        data: document.getElementById('data').value,
+        obs: document.getElementById('obs').value
+      };
+
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+
+      document.getElementById('addForm').reset();
+      fetchPlanos();
+    });
+
+    // Função de Sorteio
+    function sortearRole() {
+      const ideias = planosData.slice(1).filter(row => row[2] === 'Ideia');
+      if (ideias.length === 0) {
+        document.getElementById('suggestion').innerText = 'Nenhuma ideia cadastrada!';
+        return;
+      }
+      const sorteado = ideias[Math.floor(Math.random() * ideias.length)];
+      document.getElementById('suggestion').innerText = `Sugestão: ${sorteado[0]} (${sorteado[1]})!`;
+    }
+
+    // Inicializar
+    fetchPlanos();
+  </script>
+</body>
+</html>
