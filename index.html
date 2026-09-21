@@ -12,27 +12,25 @@
       --grid-line: #e2e3e4;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Roboto, Arial, sans-serif; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, Arial, sans-serif; }
     body { background-color: var(--sheet-bg); color: #333; font-size: 13px; }
 
-    /* Topbar estilo Google Sheets */
     header {
       background: white;
       border-bottom: 1px solid var(--border-color);
-      padding: 10px 16px;
+      padding: 12px 16px;
       display: flex;
       align-items: center;
       gap: 12px;
     }
-    .sheet-icon { width: 30px; height: 30px; background: var(--sheet-green); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 16px; }
-    .title-container h1 { font-size: 18px; font-weight: 400; color: #202124; }
+    .sheet-icon { width: 32px; height: 32px; background: var(--sheet-green); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 16px; }
+    .title-container h1 { font-size: 18px; font-weight: 500; color: #202124; }
     
-    /* Área de ações e sorteador */
     .toolbar {
       background: #edf2fc;
-      padding: 8px 16px;
+      padding: 10px 16px;
       display: flex;
-      gap: 10px;
+      gap: 12px;
       align-items: center;
       border-bottom: 1px solid var(--border-color);
     }
@@ -40,18 +38,20 @@
       background: var(--sheet-green);
       color: white;
       border: none;
-      padding: 6px 14px;
+      padding: 8px 16px;
       border-radius: 4px;
       cursor: pointer;
       font-weight: 500;
+      transition: background 0.2s;
     }
+    .btn:hover { background: #0b8043; }
     .btn-secondary {
       background: white;
       color: #1a73e8;
       border: 1px solid #dadce0;
     }
+    .btn-secondary:hover { background: #f1f3f4; }
 
-    /* Formulário de adição */
     .form-container {
       background: white;
       padding: 12px 16px;
@@ -61,21 +61,20 @@
       flex-wrap: wrap;
     }
     .form-container input, .form-container select {
-      padding: 6px 10px;
+      padding: 7px 10px;
       border: 1px solid #dadce0;
       border-radius: 4px;
       outline: none;
+      font-size: 13px;
     }
 
-    /* Tabela Estilo Grid Google Sheets */
-    .grid-container { overflow-x: auto; padding: 10px; }
+    .grid-container { overflow-x: auto; padding: 12px; }
     table { width: 100%; border-collapse: collapse; background: white; border: 1px solid var(--grid-line); }
-    th { background: #f1f3f4; color: #5f6368; font-weight: bold; text-align: left; padding: 8px; border: 1px solid var(--grid-line); font-size: 12px; }
-    td { padding: 8px; border: 1px solid var(--grid-line); color: #333; }
+    th { background: #f1f3f4; color: #5f6368; font-weight: 600; text-align: left; padding: 10px; border: 1px solid var(--grid-line); font-size: 13px; }
+    td { padding: 9px 10px; border: 1px solid var(--grid-line); color: #333; }
     tr:nth-child(even) { background-color: #f8f9fa; }
 
-    /* Modal Sorteador */
-    #suggestion { font-weight: bold; color: var(--sheet-green); }
+    #suggestion { font-weight: 600; color: var(--sheet-green); font-size: 14px; }
   </style>
 </head>
 <body>
@@ -92,7 +91,6 @@
     <span id="suggestion"></span>
   </div>
 
-  <!-- Formulário estilo nova linha da planilha -->
   <form id="addForm" class="form-container">
     <input type="text" id="oQue" placeholder="O que fazer?" required>
     <select id="categoria">
@@ -108,19 +106,18 @@
     </select>
     <input type="date" id="data">
     <input type="text" id="obs" placeholder="Observações">
-    <button type="submit" class="btn">Adicionar Linha</button>
+    <button type="submit" class="btn" id="submitBtn">Adicionar Linha</button>
   </form>
 
-  <!-- Tabela com os dados -->
   <div class="grid-container">
     <table id="sheetTable">
       <thead>
         <tr>
-          <th>A - O que fazer</th>
-          <th>B - Categoria</th>
-          <th>C - Status</th>
-          <th>D - Data</th>
-          <th>E - Observações</th>
+          <th>O que fazer</th>
+          <th>Categoria</th>
+          <th>Status</th>
+          <th>Data</th>
+          <th>Observações</th>
         </tr>
       </thead>
       <tbody>
@@ -130,44 +127,61 @@
   </div>
 
   <script>
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbygjSTpeanEpuhuMw2vewuTVYIqQKYZsRkDmJcnPWbFHuGCTZMPKLyxAyL-ZHbbTH3w/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzrpHG9YNJmLaIsMK34e6lw9wupfmUfm0yC9PTK5Y26TYVzbxQvztafg0vZRrM1Uguo/exec';
     let planosData = [];
+
+    // Formata datas ISO (AAAA-MM-DD) para PT-BR (DD/MM/AAAA)
+    function formatarDataPTBR(dataStr) {
+      if (!dataStr) return '';
+      const partes = dataStr.toString().split('T')[0].split('-');
+      if (partes.length === 3) {
+        return `${partes[2]}/${partes[1]}/${partes[0]}`;
+      }
+      return dataStr;
+    }
 
     // Carregar dados da planilha
     async function fetchPlanos() {
       try {
-        const res = await fetch(SCRIPT_URL);
+        const res = await fetch(SCRIPT_URL, { redirect: 'follow' });
         planosData = await res.json();
         renderTable(planosData);
       } catch (err) {
-        document.querySelector('#sheetTable tbody').innerHTML = '<tr><td colspan="5">Erro ao carregar dados.</td></tr>';
+        console.error(err);
+        document.querySelector('#sheetTable tbody').innerHTML = '<tr><td colspan="5">Erro ao carregar dados. Verifique a URL do script.</td></tr>';
       }
     }
 
-    // Renderizar tabela HTML
     function renderTable(data) {
       const tbody = document.querySelector('#sheetTable tbody');
       tbody.innerHTML = '';
 
-      // Pula a linha 0 (cabeçalho da planilha)
+      if (!data || data.length <= 1) {
+        tbody.innerHTML = '<tr><td colspan="5">Nenhum plano cadastrado ainda.</td></tr>';
+        return;
+      }
+
       for (let i = 1; i < data.length; i++) {
         const row = data[i];
-        if (!row.length) continue;
+        if (!row || row.length === 0) continue;
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${row[0] || ''}</td>
           <td>${row[1] || ''}</td>
           <td>${row[2] || ''}</td>
-          <td>${row[3] ? new Date(row[3]).toLocaleDateString('pt-BR') : ''}</td>
+          <td>${formatarDataPTBR(row[3])}</td>
           <td>${row[4] || ''}</td>
         `;
         tbody.appendChild(tr);
       }
     }
 
-    // Enviar novos dados
     document.getElementById('addForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+      const btn = document.getElementById('submitBtn');
+      btn.innerText = 'Salvando...';
+      btn.disabled = true;
+
       const payload = {
         action: 'add',
         oQue: document.getElementById('oQue').value,
@@ -177,16 +191,24 @@
         obs: document.getElementById('obs').value
       };
 
-      await fetch(SCRIPT_URL, {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      });
+      try {
+        await fetch(SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
 
-      document.getElementById('addForm').reset();
-      fetchPlanos();
+        document.getElementById('addForm').reset();
+        setTimeout(fetchPlanos, 1500); // Aguarda a gravação no Sheets antes de recarregar
+      } catch (err) {
+        alert('Erro ao salvar item.');
+      } finally {
+        btn.innerText = 'Adicionar Linha';
+        btn.disabled = false;
+      }
     });
 
-    // Função de Sorteio
     function sortearRole() {
       const ideias = planosData.slice(1).filter(row => row[2] === 'Ideia');
       if (ideias.length === 0) {
@@ -197,7 +219,6 @@
       document.getElementById('suggestion').innerText = `Sugestão: ${sorteado[0]} (${sorteado[1]})!`;
     }
 
-    // Inicializar
     fetchPlanos();
   </script>
 </body>
