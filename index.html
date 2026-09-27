@@ -84,9 +84,9 @@
       border: 1px solid var(--grid-line); 
       font-size: 13px; 
       user-select: none;
+      cursor: pointer;
     }
-    th.sortable { cursor: pointer; }
-    th.sortable:hover { background: #e8eaed; }
+    th:hover { background: #e8eaed; }
     td { padding: 9px 10px; border: 1px solid var(--grid-line); color: #333; }
     tbody tr { cursor: pointer; transition: background 0.15s; }
     tbody tr:hover { background-color: #f1f3f4 !important; }
@@ -147,7 +147,7 @@
   </header>
 
   <div class="toolbar">
-    <button class="btn btn-secondary" onclick="sortearRole()">🎲 Sortear</button>
+    <button class="btn btn-secondary" onclick="sortearRole()">🎲 Sortear Rolê!</button>
     <span id="suggestion"></span>
   </div>
 
@@ -173,12 +173,12 @@
     <table id="sheetTable">
       <thead>
         <tr>
-          <th class="sortable" onclick="ordenarPor(0)">Nº <span id="sort-0">↕</span></th>
-          <th>O que fazer</th>
-          <th class="sortable" onclick="ordenarPor(2)">Categoria <span id="sort-2">↕</span></th>
-          <th class="sortable" onclick="ordenarPor(3)">Status <span id="sort-3">↕</span></th>
-          <th class="sortable" onclick="ordenarPor(4)">Data <span id="sort-4">↕</span></th>
-          <th>Observações</th>
+          <th onclick="ordenarPor(0)">Nº <span id="sort-0">▲</span></th>
+          <th onclick="ordenarPor(1)">O que fazer <span id="sort-1">↕</span></th>
+          <th onclick="ordenarPor(2)">Categoria <span id="sort-2">↕</span></th>
+          <th onclick="ordenarPor(3)">Status <span id="sort-3">↕</span></th>
+          <th onclick="ordenarPor(4)">Data <span id="sort-4">↕</span></th>
+          <th onclick="ordenarPor(5)">Observações <span id="sort-5">↕</span></th>
         </tr>
       </thead>
       <tbody>
@@ -195,11 +195,11 @@
         <button type="button" class="btn-secondary" style="border:none; cursor:pointer;" onclick="fecharModal('editModal')">✕</button>
       </div>
       <div class="modal-body">
-        <input type="hidden" id="editRowIndex">
+        <input type="hidden" id="editSheetRowIndex">
         
         <div class="form-group">
           <label>Nº do Plano</label>
-          <input type="number" id="editNum" required>
+          <input type="number" id="editNum" required min="1">
         </div>
 
         <div class="form-group">
@@ -260,8 +260,10 @@
 
   <script>
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzrpHG9YNJmLaIsMK34e6lw9wupfmUfm0yC9PTK5Y26TYVzbxQvztafg0vZRrM1Uguo/exec';
-    let planosData = [];
-    let sortDirection = {};
+    
+    // Armazena itens com referência fixa à linha real do Sheets
+    let planosList = [];
+    let sortDirection = { 0: true }; // Padrão: Nº Crescente (Ascendente)
 
     function formatarDataPTBR(dataStr) {
       if (!dataStr) return '';
@@ -285,67 +287,82 @@
     async function fetchPlanos() {
       try {
         const res = await fetch(SCRIPT_URL, { redirect: 'follow' });
-        planosData = await res.json();
-        renderTable(planosData);
+        const rawData = await res.json();
+        
+        planosList = [];
+        // Mapeia cada linha mantendo a referência exata da linha no Sheets (sheetRowIndex)
+        for (let i = 1; i < rawData.length; i++) {
+          const row = rawData[i];
+          if (!row || row.length === 0) continue;
+          planosList.push({
+            sheetRowIndex: i + 1, // Ex: linha 2 do Sheets
+            num: parseInt(row[0]) || i,
+            oQue: row[1] || '',
+            categoria: row[2] || '',
+            status: row[3] || '',
+            data: row[4] || '',
+            obs: row[5] || ''
+          });
+        }
+
+        // Ordena por padrão pelo Nº (Crescente)
+        ordenarLista(0, true);
       } catch (err) {
         console.error(err);
         document.querySelector('#sheetTable tbody').innerHTML = '<tr><td colspan="6">Erro ao carregar dados. Verifique a URL do script.</td></tr>';
       }
     }
 
-    function renderTable(data) {
+    function renderTable() {
       const tbody = document.querySelector('#sheetTable tbody');
       tbody.innerHTML = '';
 
-      if (!data || data.length <= 1) {
+      if (planosList.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6">Nenhum plano cadastrado ainda.</td></tr>';
         return;
       }
 
-      for (let i = 1; i < data.length; i++) {
-        const row = data[i];
-        if (!row || row.length === 0) continue;
-
+      planosList.forEach((item) => {
         const tr = document.createElement('tr');
-        tr.onclick = () => abrirEdicao(i, row);
-
-        const num = row[0] || i; // Se não houver número preenchido na coluna A, mostra o índice
-        const oQue = row[1] || '';
-        const categoria = row[2] || '';
-        const status = row[3] || '';
-        const dataVal = formatarDataPTBR(row[4]);
-        const obs = row[5] || '';
+        tr.onclick = () => abrirEdicao(item);
 
         tr.innerHTML = `
-          <td><strong>${num}</strong></td>
-          <td>${oQue}</td>
-          <td>${categoria}</td>
-          <td>${status}</td>
-          <td>${dataVal}</td>
-          <td>${obs}</td>
+          <td><strong>${item.num}</strong></td>
+          <td>${item.oQue}</td>
+          <td>${item.categoria}</td>
+          <td>${item.status}</td>
+          <td>${formatarDataPTBR(item.data)}</td>
+          <td>${item.obs}</td>
         `;
         tbody.appendChild(tr);
-      }
+      });
     }
 
-    // Ordenação
     function ordenarPor(colIndex) {
       const isAsc = !sortDirection[colIndex];
+      sortDirection = {}; // Reseta os outros
       sortDirection[colIndex] = isAsc;
 
       document.querySelectorAll('th span').forEach(s => s.innerText = '↕');
       document.getElementById(`sort-${colIndex}`).innerText = isAsc ? '▲' : '▼';
 
-      const header = planosData[0];
-      const rows = planosData.slice(1);
+      ordenarLista(colIndex, isAsc);
+    }
 
-      rows.sort((a, b) => {
-        let valA = a[colIndex] !== undefined ? a[colIndex] : '';
-        let valB = b[colIndex] !== undefined ? b[colIndex] : '';
+    function ordenarLista(colIndex, isAsc) {
+      const fieldKeys = ['num', 'oQue', 'categoria', 'status', 'data', 'obs'];
+      const key = fieldKeys[colIndex];
+
+      planosList.sort((a, b) => {
+        let valA = a[key] !== undefined ? a[key] : '';
+        let valB = b[key] !== undefined ? b[key] : '';
 
         if (colIndex === 0) {
           valA = Number(valA) || 0;
           valB = Number(valB) || 0;
+        } else {
+          valA = valA.toString().toLowerCase();
+          valB = valB.toString().toLowerCase();
         }
 
         if (valA < valB) return isAsc ? -1 : 1;
@@ -353,19 +370,17 @@
         return 0;
       });
 
-      planosData = [header, ...rows];
-      renderTable(planosData);
+      renderTable();
     }
 
-    // Modal de Edição
-    function abrirEdicao(rowIndex, rowData) {
-      document.getElementById('editRowIndex').value = rowIndex;
-      document.getElementById('editNum').value = rowData[0] || rowIndex;
-      document.getElementById('editOQue').value = rowData[1] || '';
-      document.getElementById('editCategoria').value = rowData[2] || 'Restaurante';
-      document.getElementById('editStatus').value = rowData[3] || 'Ideia';
-      document.getElementById('editData').value = formatarDataISO(rowData[4]);
-      document.getElementById('editObs').value = rowData[5] || '';
+    function abrirEdicao(item) {
+      document.getElementById('editSheetRowIndex').value = item.sheetRowIndex;
+      document.getElementById('editNum').value = item.num;
+      document.getElementById('editOQue').value = item.oQue;
+      document.getElementById('editCategoria').value = item.categoria || 'Restaurante';
+      document.getElementById('editStatus').value = item.status || 'Ideia';
+      document.getElementById('editData').value = formatarDataISO(item.data);
+      document.getElementById('editObs').value = item.obs;
       
       document.getElementById('editModal').classList.add('active');
     }
@@ -383,10 +398,9 @@
       btn.innerText = 'Salvando...';
       btn.disabled = true;
 
-      const rowIndex = document.getElementById('editRowIndex').value;
       const payload = {
         action: 'edit',
-        rowIndex: rowIndex,
+        sheetRowIndex: document.getElementById('editSheetRowIndex').value,
         num: document.getElementById('editNum').value,
         oQue: document.getElementById('editOQue').value,
         categoria: document.getElementById('editCategoria').value,
@@ -404,7 +418,7 @@
         });
 
         fecharModal('editModal');
-        setTimeout(fetchPlanos, 1200);
+        setTimeout(fetchPlanos, 1500);
       } catch (err) {
         alert('Erro ao salvar alterações.');
       } finally {
@@ -413,18 +427,18 @@
       }
     }
 
-    // Adicionar Novo
     document.getElementById('addForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = document.getElementById('submitBtn');
       btn.innerText = 'Salvando...';
       btn.disabled = true;
 
-      const proximoNum = planosData.length;
+      // Calcula o próximo número disponível no momento
+      const maiorNum = planosList.reduce((max, item) => item.num > max ? item.num : max, 0);
 
       const payload = {
         action: 'add',
-        num: proximoNum,
+        num: maiorNum + 1,
         oQue: document.getElementById('oQue').value,
         categoria: document.getElementById('categoria').value,
         status: document.getElementById('status').value,
@@ -441,7 +455,7 @@
         });
 
         document.getElementById('addForm').reset();
-        setTimeout(fetchPlanos, 1200);
+        setTimeout(fetchPlanos, 1500);
       } catch (err) {
         alert('Erro ao salvar item.');
       } finally {
@@ -451,13 +465,13 @@
     });
 
     function sortearRole() {
-      const ideias = planosData.slice(1).filter(row => (row[3] || '') === 'Ideia');
+      const ideias = planosList.filter(item => item.status === 'Ideia');
       if (ideias.length === 0) {
         document.getElementById('suggestion').innerText = 'Nenhuma ideia cadastrada!';
         return;
       }
       const sorteado = ideias[Math.floor(Math.random() * ideias.length)];
-      document.getElementById('suggestion').innerText = `Sugestão: ${sorteado[1]} (${sorteado[2]})!`;
+      document.getElementById('suggestion').innerText = `Sugestão: ${sorteado.oQue} (${sorteado.categoria})!`;
     }
 
     fetchPlanos();
